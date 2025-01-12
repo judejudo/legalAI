@@ -53,8 +53,10 @@ function Chatbot() {
       {messages.length === 0 && (
         <div className='mt-3 font-urbanist text-primary-blue text-xl font-light space-y-2'>
           <p>👋 Welcome!</p>
-          <p>I am powered by the latest technology reports from leading institutions like the World Bank, the World Economic Forum, McKinsey, Deloitte and the OECD.</p>
-          <p>Ask me anything about the latest technology trends.</p>
+          <p>I am powered by advanced AI technologies and trained on extensive legal data, including case precedents and statutes from Kenya's legal system.
+
+</p>
+          <p>Type your case details below to get personalized predictions and expert legal insights.</p>
         </div>
       )}
       <ChatMessages

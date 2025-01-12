@@ -15,13 +15,35 @@ def batchify(iterable, batch_size):
 async def process_docs(docs_dir=settings.DOCS_DIR):
     docs = []
     print('\nLoading documents')
+    
+    # Check if directory exists
+    if not os.path.exists(docs_dir):
+        print(f"Creating directory: {docs_dir}")
+        os.makedirs(docs_dir)
+    
     pdf_files = [f for f in os.listdir(docs_dir) if f.endswith('.pdf')]
+    if not pdf_files:
+        print("No PDF files found in directory")
+        return []
+        
     for filename in tqdm(pdf_files):
         file_path = os.path.join(docs_dir, filename)
-        text = extract_text(file_path)
-        doc_name = os.path.splitext(filename)[0]
-        docs.append((doc_name, text))
-    print(f'Loaded {len(docs)} PDF documents')
+        try:
+            text = extract_text(file_path)
+            if not text.strip():  # Check if extracted text is empty
+                print(f"\nWarning: No text extracted from {filename}")
+                continue
+            doc_name = os.path.splitext(filename)[0]
+            docs.append((doc_name, text))
+        except Exception as e:
+            print(f"\nError processing {filename}: {str(e)}")
+            continue
+    
+    print(f'\nSuccessfully loaded {len(docs)} out of {len(pdf_files)} PDF documents')
+    
+    if not docs:
+        print("No documents were successfully processed")
+        return []
 
     chunks = []
     text_splitter = TextSplitter(chunk_size=512, chunk_overlap=150)
@@ -38,6 +60,11 @@ async def process_docs(docs_dir=settings.DOCS_DIR):
             }
             chunks.append(chunk)
         print(f'{doc_name}: {len(doc_chunks)} chunks')
+    
+    if not chunks:
+        print("No chunks were created from the documents")
+        return []
+        
     chunk_sizes = [token_size(c['text']) for c in chunks]
     print(f'\nTotal chunks: {len(chunks)}')
     print(f'Min chunk size: {min(chunk_sizes)} tokens')
@@ -48,9 +75,13 @@ async def process_docs(docs_dir=settings.DOCS_DIR):
     print('\nEmbedding chunks')
     with tqdm(total=len(chunks)) as pbar:
         for batch in batchify(chunks, batch_size=64):
-            batch_vectors = await get_embeddings([chunk['text'] for chunk in batch])
-            vectors.extend(batch_vectors)
-            pbar.update(len(batch))
+            try:
+                batch_vectors = await get_embeddings([chunk['text'] for chunk in batch])
+                vectors.extend(batch_vectors)
+                pbar.update(len(batch))
+            except Exception as e:
+                print(f"\nError processing batch: {str(e)}")
+                continue
 
     for chunk, vector in zip(chunks, vectors):
         chunk['vector'] = vector
@@ -61,9 +92,12 @@ async def load_knowledge_base():
         print('Setting up Redis database')
         await setup_db(rdb)
         chunks = await process_docs()
-        print('\nAdding chunks to vector db')
-        await add_chunks_to_vector_db(rdb, chunks)
-        print('\nKnowledge base loaded')
+        if chunks:
+            print('\nAdding chunks to vector db')
+            await add_chunks_to_vector_db(rdb, chunks)
+            print('\nKnowledge base loaded')
+        else:
+            print('\nNo chunks to load into knowledge base')
 
 def main():
     try:
@@ -71,7 +105,9 @@ def main():
             asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
         asyncio.run(load_knowledge_base())
     except KeyboardInterrupt:
-        pass
+        print("\nProcess interrupted by user")
+    except Exception as e:
+        print(f"\nAn error occurred: {str(e)}")
     finally:
         # Ensure proper cleanup
         if hasattr(asyncio, '_get_running_loop'):

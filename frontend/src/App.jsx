@@ -1,5 +1,5 @@
 import Chatbot from '@/components/Chatbot';
-import logo from '@/assets/images/logo.svg';
+import logo from '@/assets/images/logo.png';
 
 function App() {
 

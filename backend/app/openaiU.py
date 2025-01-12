@@ -19,7 +19,6 @@ def token_size(text):
     return len(tokenizer.encode(text))
 
 async def get_embedding(input):
-    # Convert to numpy array and then to list for compatibility
     embedding = embedding_model.encode(input)
     return embedding.tolist()
 
